@@ -68,6 +68,7 @@ COMMON_SRC = \
             common/maths.c \
             common/printf.c \
             common/printf_serial.c \
+            common/usb_serial_debug.c \
             common/pwl.c \
             common/sdft.c \
             common/sensor_alignment.c \
