@@ -503,7 +503,10 @@ vtx_msp_unittest_DEFINES := \
 		USE_VTX_MSP=
 
 pwl_unittest_SRC := \
-		$(USER_DIR)/common/pwl.c
+                $(USER_DIR)/common/pwl.c
+
+usb_serial_debug_unittest_SRC := \
+                $(USER_DIR)/common/usb_serial_debug.c
 
 # Please tweak the following variable definitions as needed by your
 # project, except GTEST_HEADERS, which you can use in your own targets

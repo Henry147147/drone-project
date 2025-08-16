@@ -77,6 +77,7 @@ COMMON_SRC = \
             common/strtol.c \
             common/time.c \
             common/typeconversion.c \
+            common/usb_serial_debug.c \
             common/uvarint.c \
             common/vector.c \
             config/config.c \
