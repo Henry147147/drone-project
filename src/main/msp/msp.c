@@ -3294,7 +3294,6 @@ static mspResult_e mspProcessInCommand(mspDescriptor_t srcDesc, int16_t cmdMSP, 
         }
 
         pidInitConfig(currentPidProfile);
-        initRCACController(currentPidProfile);
         initEscEndpoints();
         mixerInitProfile();
 

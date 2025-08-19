@@ -48,6 +48,7 @@
 #include "sensors/sensors.h"
 
 #include "pid_init.h"
+#include "rcac.h"
 
 #ifdef USE_D_MAX
 #define D_MAX_RANGE_HZ 85    // PT2 lowpass input cutoff to peak D around propwash frequencies
@@ -390,7 +391,7 @@ void pidInit(const pidProfile_t *pidProfile)
 }
 
 void pidInitConfig(const pidProfile_t *pidProfile)
-{
+{  
     for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
         pidRuntime.pidCoefficient[axis].Kp = PTERM_SCALE * pidProfile->pid[axis].P;
         pidRuntime.pidCoefficient[axis].Ki = ITERM_SCALE * pidProfile->pid[axis].I;
@@ -584,6 +585,7 @@ void pidInitConfig(const pidProfile_t *pidProfile)
 #ifdef USE_WING
     tpaSpeedInit(pidProfile);
 #endif
+    initRCACController(pidProfile);
 }
 
 void pidCopyProfile(uint8_t dstPidProfileIndex, uint8_t srcPidProfileIndex)
