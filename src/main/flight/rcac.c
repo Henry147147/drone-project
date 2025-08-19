@@ -2,13 +2,15 @@
 #include <build/debug.h>
 #include <common/utils.h>
 
-void RCAC_Scalar(const pidProfile_t *pidProfile, const int axisIndex) {
+void RCAC_Scalar(const pidProfile_t *pidProfile, const int axisIndex)
+{
   const RCAC_input_output_t *inputOutput = &pidProfile->RCAC_input_output[axisIndex];
   const RCAC_hyperparameters_t *hyperParams = &pidProfile->RCAC_hyperparameters[axisIndex];
   const RCAC_internal_state_t *state = &pidProfile->RCAC_internal_state[axisIndex];
   const float k = inputOutput->k;
   const uint8_t ltheta = hyperParams->reg_size;
-  if (k == 1) {
+  if (k == 1)
+  {
     InitializeWindowBuffers(state, &hyperParams);
     InitalizeHBuffer(state, &hyperParams);
   }
@@ -17,19 +19,23 @@ void RCAC_Scalar(const pidProfile_t *pidProfile, const int axisIndex) {
   // updateWindowBuffer(u_in, z_in);
 }
 
-float* _newFloatArray(size_t size) {
-  return (float*) malloc((size) * sizeof(float));
+float *_newFloatArray(size_t size)
+{
+  return (float *)malloc((size) * sizeof(float));
 }
 
-float** _new2DFloatArray(size_t cols, size_t rows) {
-  float** array = (float**) malloc(cols * sizeof(float*));
-  for (int idx = 0; idx < rows; idx++) {
-    array[idx] = (float*) malloc(rows * sizeof(float));
+float **_new2DFloatArray(size_t cols, size_t rows)
+{
+  float **array = (float **)malloc(cols * sizeof(float *));
+  for (int idx = 0; idx < rows; idx++)
+  {
+    array[idx] = (float *)malloc(rows * sizeof(float));
   }
   return array;
 }
 
-void InitalizeHBuffer(RCAC_internal_state_t *internalState, RCAC_hyperparameters_t *hyperParams) {
+void InitalizeHBuffer(RCAC_internal_state_t *internalState, RCAC_hyperparameters_t *hyperParams)
+{
   // Note: u_h is allocated with size Nc-1 while others are size Nc.
   const uint8_t nc = hyperParams->nc;
   // not doing a malloc return type check because if it fails, womp womp system go brbrbrbr!!!!
@@ -37,7 +43,8 @@ void InitalizeHBuffer(RCAC_internal_state_t *internalState, RCAC_hyperparameters
   free(internalState->u_h);
   internalState->u_h = _newFloatArray(nc - 1); // new float[FLAG.Nc - 1];
 
-  for (int cols = 0; cols < nc - 1; cols++) {
+  for (int cols = 0; cols < nc - 1; cols++)
+  {
     internalState->u_h[cols] = 0.0;
   }
   free(internalState->z_h);
@@ -49,14 +56,16 @@ void InitalizeHBuffer(RCAC_internal_state_t *internalState, RCAC_hyperparameters
   free(internalState->yp_h);
   internalState->yp_h = _newFloatArray(nc);
 
-  for (int cols = 0; cols < nc; cols++) {
+  for (int cols = 0; cols < nc; cols++)
+  {
     internalState->z_h[cols] = 0.0;
     internalState->r_h[cols] = 0.0;
     internalState->yp_h[cols] = 0.0;
   }
 }
 
-void InitializeWindowBuffers(RCAC_hyperparameters_t *hyperParams, RCAC_internal_state_t* state) {
+void InitializeWindowBuffers(RCAC_hyperparameters_t *hyperParams, RCAC_internal_state_t *state)
+{
   // Determine dimensions for the window buffers
   int nf_end = 5;
   int pc = nf_end;
@@ -65,8 +74,10 @@ void InitializeWindowBuffers(RCAC_hyperparameters_t *hyperParams, RCAC_internal_
 
   // Allocate and initialize PHI_window (dimensions: (ltheta-1) x (pn-1))
   state->PHI_window = _new2DFloatArray(ltheta, pn);
-  for (int rows = 0; rows < ltheta - 1; rows++) {
-    for (int cols = 0; cols < pn - 1; cols++) {
+  for (int rows = 0; rows < ltheta - 1; rows++)
+  {
+    for (int cols = 0; cols < pn - 1; cols++)
+    {
       state->PHI_window[rows][cols] = 0.0;
     }
   }
@@ -74,28 +85,33 @@ void InitializeWindowBuffers(RCAC_hyperparameters_t *hyperParams, RCAC_internal_
   // Allocate and initialize u_window  and z_window (size: pn-1)
   state->u_window = _newFloatArray(pn);
   state->z_window = _newFloatArray(pn);
-  for (int cols = 0; cols < pn - 1; cols++) {
+  for (int cols = 0; cols < pn - 1; cols++)
+  {
     state->u_window[cols] = 0.0;
     state->z_window[cols] = 0.0;
   }
 
   // Allocate and initialize PHI_filt_window (dimensions: (ltheta-1) x (2*ltheta-1))
-  state->PHI_filt_window = _new2DFloatArray(ltheta, 2*ltheta);
-  for (int rows = 0; rows < ltheta - 1; rows++) {
-    for (int cols = 0; cols < 2 * ltheta - 1; cols++) {
+  state->PHI_filt_window = _new2DFloatArray(ltheta, 2 * ltheta);
+  for (int rows = 0; rows < ltheta - 1; rows++)
+  {
+    for (int cols = 0; cols < 2 * ltheta - 1; cols++)
+    {
       state->PHI_filt_window[rows][cols] = 0.0;
     }
   }
 
   // Allocate and initialize u_filt_window (size: 2*ltheta-1)
   state->u_filt_window = _newFloatArray(2 * ltheta);
-  for (int cols = 0; cols < 2 * ltheta - 1; cols++) {
+  for (int cols = 0; cols < 2 * ltheta - 1; cols++)
+  {
     state->u_filt_window[cols] = 0.0;
   }
 }
 
 // UpdateHBuffers: Shifts all history buffers and updates them with new inputs
-void UpdateHBuffers(RCAC_input_output_t* inputOutput, RCAC_hyperparameters_t* hyperparams, RCAC_internal_state_t* state) {
+void UpdateHBuffers(RCAC_input_output_t *inputOutput, RCAC_hyperparameters_t *hyperparams, RCAC_internal_state_t *state)
+{
   float u_in = inputOutput->u;
   float z_in = inputOutput->z;
   float yp_in = inputOutput->yp;
@@ -103,7 +119,8 @@ void UpdateHBuffers(RCAC_input_output_t* inputOutput, RCAC_hyperparameters_t* hy
   // Update u_h (size: FLAG.Nc - 1)
   int len_u = hyperparams->nc - 1;
   // Shift right: for i from (len_u-1) downto 1, assign u_h[i] = u_h[i-1]
-  for (int i = len_u - 1; i > 0; i--) {
+  for (int i = len_u - 1; i > 0; i--)
+  {
     state->u_h[i] = state->u_h[i - 1];
   }
   // Set the first element to new control input
@@ -111,27 +128,33 @@ void UpdateHBuffers(RCAC_input_output_t* inputOutput, RCAC_hyperparameters_t* hy
 
   // Update z_h (size: FLAG.Nc)
   int len_z = hyperparams->nc;
-  for (int i = len_z - 1; i > 0; i--) {
+  for (int i = len_z - 1; i > 0; i--)
+  {
     state->z_h[i] = state->z_h[i - 1];
   }
   state->z_h[0] = z_in;
 
   // Update r_h (size: FLAG.Nc)
   int len_r = hyperparams->nc;
-  for (int i = len_r - 1; i > 0; i--) {
+  for (int i = len_r - 1; i > 0; i--)
+  {
     state->r_h[i] = state->r_h[i - 1];
   }
   state->r_h[0] = r_in;
 
   // Update yp_h (size: FLAG.Nc)
   int len_yp = hyperparams->nc;
-  for (int i = len_yp - 1; i > 0; i--) {
+  for (int i = len_yp - 1; i > 0; i--)
+  {
     state->yp_h[i] = state->yp_h[i - 1];
   }
   // Choose value based on FLAG.RegZ
-  if (hyperparams->reg_z == true) {
+  if (hyperparams->reg_z == true)
+  {
     state->yp_h[0] = z_in;
-  } else {
+  }
+  else
+  {
     state->yp_h[0] = yp_in;
   }
 
@@ -139,8 +162,10 @@ void UpdateHBuffers(RCAC_input_output_t* inputOutput, RCAC_hyperparameters_t* hy
   state->intg = state->intg + state->z_h[0];
 }
 
-void buildRegressor(RCAC_internal_state_t* state, int k, uint8_t ltheta) {
-  if (k == 1) {
+void buildRegressor(RCAC_internal_state_t *state, int k, uint8_t ltheta)
+{
+  if (k == 1)
+  {
     state->PHI = _newFloatArray(ltheta);
   }
   state->PHI[0] = state->yp_h[0];
@@ -148,25 +173,29 @@ void buildRegressor(RCAC_internal_state_t* state, int k, uint8_t ltheta) {
   state->PHI[2] = state->yp_h[0] - state->yp_h[1];
 }
 
-void updateWindowBuffer(RCAC_internal_state_t* state, RCAC_hyperparameters_t* hyperparams, float u_in, float z_in) {
+void updateWindowBuffer(RCAC_internal_state_t *state, RCAC_hyperparameters_t *hyperparams, float u_in, float z_in)
+{
   uint8_t nf_end = 5;
   int32_t nf = hyperparams->FILT_nf;
   int32_t length_window = nf + nf_end;
   uint8_t ltheta = hyperparams->reg_size;
 
-  for (int column = length_window; column > 0; column--) {
+  for (int column = length_window; column > 0; column--)
+  {
     state->u_window[column] = state->u_window[column - 1];
   }
   state->u_window[0] = u_in;
 
-  for (int column = length_window; column > 0; column--) {
+  for (int column = length_window; column > 0; column--)
+  {
     state->z_window[column] = state->z_window[column - 1];
   }
   state->z_window[0] = z_in;
 
-
-  for (int row = 0; row < ltheta; row++) {
-    for (int column = length_window; column > 0; column--) {
+  for (int row = 0; row < ltheta; row++)
+  {
+    for (int column = length_window; column > 0; column--)
+    {
       state->PHI_window[row][column] = state->PHI_window[row][column - 1];
     }
     state->PHI_window[row][0] = state->PHI[row];
@@ -183,9 +212,12 @@ void PrintBuffers(const RCAC_input_output_t *inputOutput,
   DEBUG_SET(DEBUG_RCAC, 1, lrintf(inputOutput->z));
   DEBUG_SET(DEBUG_RCAC, 2, lrintf(inputOutput->yp));
   DEBUG_SET(DEBUG_RCAC, 3, lrintf(inputOutput->r));
-  if (state->PHI) {
+  if (state->PHI)
+  {
     DEBUG_SET(DEBUG_RCAC, 4, lrintf(state->PHI[0]));
-    } else {
+  }
+  else
+  {
     DEBUG_SET(DEBUG_RCAC, 4, 0);
   }
   DEBUG_SET(DEBUG_RCAC, 5, lrintf(state->u_h[0]));
@@ -193,8 +225,10 @@ void PrintBuffers(const RCAC_input_output_t *inputOutput,
   DEBUG_SET(DEBUG_RCAC, 7, lrintf(state->r_h[0]));
 }
 
-void initRCACController(const pidProfile_t *pidProfile) {
-  for (int axisIndex = 0; axisIndex < XYZ_AXIS_COUNT; axisIndex++) {
+void initRCACController(const pidProfile_t *pidProfile)
+{
+  for (int axisIndex = 0; axisIndex < XYZ_AXIS_COUNT; axisIndex++)
+  {
     RCAC_Scalar(pidProfile, axisIndex);
     PrintBuffers(&pidProfile->RCAC_input_output[axisIndex],
                  &pidProfile->RCAC_hyperparameters[axisIndex],
@@ -202,10 +236,11 @@ void initRCACController(const pidProfile_t *pidProfile) {
   }
 }
 
-
-void initRCACController(const pidProfile_t *pidProfile) {
-  for (int axisIndex = 0; axisIndex < XYZ_AXIS_COUNT; axisIndex++) {
-    RCAC_input_output_t* inputOutput = &pidProfile->RCAC_input_output[axisIndex];
+void initRCACController(const pidProfile_t *pidProfile)
+{
+  for (int axisIndex = 0; axisIndex < XYZ_AXIS_COUNT; axisIndex++)
+  {
+    RCAC_input_output_t *inputOutput = &pidProfile->RCAC_input_output[axisIndex];
     inputOutput->k = inputOutput->k + 1;
     RCAC_Scalar(pidProfile, axisIndex);
     PrintBuffers(inputOutput,
