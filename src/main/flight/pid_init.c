@@ -585,7 +585,7 @@ void pidInitConfig(const pidProfile_t *pidProfile)
 #ifdef USE_WING
     tpaSpeedInit(pidProfile);
 #endif
-    initRCACController(pidProfile);
+    initRCACController((pidProfile_t*) pidProfile);
 }
 
 void pidCopyProfile(uint8_t dstPidProfileIndex, uint8_t srcPidProfileIndex)

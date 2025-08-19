@@ -71,6 +71,7 @@
 #include "flight/imu.h"
 #include "flight/mixer.h"
 #include "flight/pid.h"
+#include "flight/rcac.h"
 #include "flight/position.h"
 #include "flight/rpm_filter.h"
 #include "flight/servos.h"
@@ -1359,10 +1360,7 @@ FAST_CODE void taskFiltering(timeUs_t currentTimeUs)
 }
 
 static FAST_CODE_NOINLINE void subTaskRCACUpdate(timeUs_t currentTimeUs) {
-    // TODO
-    if (currentTimeUs == 0) {
-
-    }
+    runRCACController(currentPidProfile, currentTimeUs);
 }
 
 // Function for loop trigger
