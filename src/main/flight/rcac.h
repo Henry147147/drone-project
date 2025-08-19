@@ -1,7 +1,6 @@
 #pragma once
 
-struct pidProfile_s;
-typedef struct pidProfile_s pidProfile_t;
+#include "pid.h"
 
 void runRCACController(pidProfile_t *pidProfile, timeUs_t currentTimeUs);
 

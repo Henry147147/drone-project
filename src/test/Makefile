@@ -29,6 +29,9 @@ VPATH := $(VPATH):$(USER_DIR):$(TEST_DIR)
 #   <test_name>_INCLUDE_DIRS
 #   <test_name>_EXPAND (run for each target, call the above with target as $1)
 #   <test_name>_BLACKLIST (targets to exclude from an expanded test's run)
+rcac_unittest_SRC := \
+                $(USER_DIR)/flight/rcac.c \
+				$(USER_DIR)/flight/pid.c
 
 alignsensor_unittest_SRC := \
 		$(USER_DIR)/sensors/boardalignment.c \
