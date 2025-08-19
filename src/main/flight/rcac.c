@@ -1,41 +1,56 @@
-#include "rcac.h"
+#include "platform.h"
 #include "pid.h"
+#include "rcac.h"
 #include "build/debug.h"
 #include <math.h>
+#include <stdlib.h>
 
-void RCAC_Scalar(const pidProfile_t *pidProfile, const int axisIndex)
+static void InitializeWindowBuffers(const RCAC_hyperparameters_t *hyperParams, RCAC_internal_state_t *state);
+static void InitalizeHBuffer(RCAC_internal_state_t *internalState, const RCAC_hyperparameters_t *hyperParams);
+static void UpdateHBuffers(const RCAC_input_output_t *inputOutput, const RCAC_hyperparameters_t *hyperparams, RCAC_internal_state_t *state);
+static void buildRegressor(RCAC_internal_state_t *state, int k, uint8_t ltheta);
+static void updateWindowBuffer(RCAC_internal_state_t *state, const RCAC_hyperparameters_t *hyperparams, float u_in, float z_in) __attribute__((unused));
+static void PrintBuffers(const RCAC_input_output_t *inputOutput, const RCAC_hyperparameters_t *hyperParams, const RCAC_internal_state_t *state);
+static float *_newFloatArray(size_t size);
+static float **_new2DFloatArray(size_t rows, size_t cols);
+
+static void RCAC_Scalar(pidProfile_t *pidProfile, const int axisIndex)
 {
   const RCAC_input_output_t *inputOutput = &pidProfile->RCAC_input_output[axisIndex];
   const RCAC_hyperparameters_t *hyperParams = &pidProfile->RCAC_hyperparameters[axisIndex];
-  const RCAC_internal_state_t *state = &pidProfile->RCAC_internal_state[axisIndex];
+  RCAC_internal_state_t *state = &pidProfile->RCAC_internal_state[axisIndex];
   const float k = inputOutput->k;
   const uint8_t ltheta = hyperParams->reg_size;
   if (k == 1)
   {
-    InitializeWindowBuffers(state, &hyperParams);
-    InitalizeHBuffer(state, &hyperParams);
+    InitializeWindowBuffers(hyperParams, state);
+    InitalizeHBuffer(state, hyperParams);
   }
   UpdateHBuffers(inputOutput, hyperParams, state);
   buildRegressor(state, k, ltheta);
   // updateWindowBuffer(u_in, z_in);
 }
 
-float *_newFloatArray(size_t size)
+static float *_newFloatArray(size_t size)
 {
-  return (float *)malloc((size) * sizeof(float));
+  return (float *)calloc(size, sizeof(float));
 }
 
-float **_new2DFloatArray(size_t cols, size_t rows)
+static float **_new2DFloatArray(size_t rows, size_t cols)
 {
-  float **array = (float **)malloc(cols * sizeof(float *));
-  for (int idx = 0; idx < rows; idx++)
+  float **array = (float **)malloc(rows * sizeof(float *));
+  if (!array)
   {
-    array[idx] = (float *)malloc(rows * sizeof(float));
+    return NULL;
+  }
+  for (size_t idx = 0; idx < rows; idx++)
+  {
+    array[idx] = (float *)calloc(cols, sizeof(float));
   }
   return array;
 }
 
-void InitalizeHBuffer(RCAC_internal_state_t *internalState, RCAC_hyperparameters_t *hyperParams)
+static void InitalizeHBuffer(RCAC_internal_state_t *internalState, const RCAC_hyperparameters_t *hyperParams)
 {
   // Note: u_h is allocated with size Nc-1 while others are size Nc.
   const uint8_t nc = hyperParams->nc;
@@ -43,11 +58,6 @@ void InitalizeHBuffer(RCAC_internal_state_t *internalState, RCAC_hyperparameters
 
   free(internalState->u_h);
   internalState->u_h = _newFloatArray(nc - 1); // new float[FLAG.Nc - 1];
-
-  for (int cols = 0; cols < nc - 1; cols++)
-  {
-    internalState->u_h[cols] = 0.0;
-  }
   free(internalState->z_h);
   internalState->z_h = _newFloatArray(nc);
 
@@ -56,16 +66,9 @@ void InitalizeHBuffer(RCAC_internal_state_t *internalState, RCAC_hyperparameters
 
   free(internalState->yp_h);
   internalState->yp_h = _newFloatArray(nc);
-
-  for (int cols = 0; cols < nc; cols++)
-  {
-    internalState->z_h[cols] = 0.0;
-    internalState->r_h[cols] = 0.0;
-    internalState->yp_h[cols] = 0.0;
-  }
 }
 
-void InitializeWindowBuffers(RCAC_hyperparameters_t *hyperParams, RCAC_internal_state_t *state)
+static void InitializeWindowBuffers(const RCAC_hyperparameters_t *hyperParams, RCAC_internal_state_t *state)
 {
   // Determine dimensions for the window buffers
   int nf_end = 5;
@@ -75,43 +78,20 @@ void InitializeWindowBuffers(RCAC_hyperparameters_t *hyperParams, RCAC_internal_
 
   // Allocate and initialize PHI_window (dimensions: (ltheta-1) x (pn-1))
   state->PHI_window = _new2DFloatArray(ltheta, pn);
-  for (int rows = 0; rows < ltheta - 1; rows++)
-  {
-    for (int cols = 0; cols < pn - 1; cols++)
-    {
-      state->PHI_window[rows][cols] = 0.0;
-    }
-  }
 
   // Allocate and initialize u_window  and z_window (size: pn-1)
   state->u_window = _newFloatArray(pn);
   state->z_window = _newFloatArray(pn);
-  for (int cols = 0; cols < pn - 1; cols++)
-  {
-    state->u_window[cols] = 0.0;
-    state->z_window[cols] = 0.0;
-  }
 
   // Allocate and initialize PHI_filt_window (dimensions: (ltheta-1) x (2*ltheta-1))
   state->PHI_filt_window = _new2DFloatArray(ltheta, 2 * ltheta);
-  for (int rows = 0; rows < ltheta - 1; rows++)
-  {
-    for (int cols = 0; cols < 2 * ltheta - 1; cols++)
-    {
-      state->PHI_filt_window[rows][cols] = 0.0;
-    }
-  }
 
   // Allocate and initialize u_filt_window (size: 2*ltheta-1)
   state->u_filt_window = _newFloatArray(2 * ltheta);
-  for (int cols = 0; cols < 2 * ltheta - 1; cols++)
-  {
-    state->u_filt_window[cols] = 0.0;
-  }
 }
 
 // UpdateHBuffers: Shifts all history buffers and updates them with new inputs
-void UpdateHBuffers(RCAC_input_output_t *inputOutput, RCAC_hyperparameters_t *hyperparams, RCAC_internal_state_t *state)
+static void UpdateHBuffers(const RCAC_input_output_t *inputOutput, const RCAC_hyperparameters_t *hyperparams, RCAC_internal_state_t *state)
 {
   float u_in = inputOutput->u;
   float z_in = inputOutput->z;
@@ -163,7 +143,7 @@ void UpdateHBuffers(RCAC_input_output_t *inputOutput, RCAC_hyperparameters_t *hy
   state->intg = state->intg + state->z_h[0];
 }
 
-void buildRegressor(RCAC_internal_state_t *state, int k, uint8_t ltheta)
+static void buildRegressor(RCAC_internal_state_t *state, int k, uint8_t ltheta)
 {
   if (k == 1)
   {
@@ -174,7 +154,7 @@ void buildRegressor(RCAC_internal_state_t *state, int k, uint8_t ltheta)
   state->PHI[2] = state->yp_h[0] - state->yp_h[1];
 }
 
-void updateWindowBuffer(RCAC_internal_state_t *state, RCAC_hyperparameters_t *hyperparams, float u_in, float z_in)
+static void updateWindowBuffer(RCAC_internal_state_t *state, const RCAC_hyperparameters_t *hyperparams, float u_in, float z_in)
 {
   uint8_t nf_end = 5;
   int32_t nf = hyperparams->FILT_nf;
@@ -203,7 +183,7 @@ void updateWindowBuffer(RCAC_internal_state_t *state, RCAC_hyperparameters_t *hy
   }
 }
 
-void PrintBuffers(const RCAC_input_output_t *inputOutput,
+static void PrintBuffers(const RCAC_input_output_t *inputOutput,
                   const RCAC_hyperparameters_t *hyperParams,
                   const RCAC_internal_state_t *state)
 {
