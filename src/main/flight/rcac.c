@@ -1,4 +1,6 @@
 #include "rcac.h"
+#include <build/debug.h>
+#include <common/utils.h>
 
 void RCAC_Scalar(const pidProfile_t *pidProfile, const int axisIndex) {
   const RCAC_input_output_t *inputOutput = &pidProfile->RCAC_input_output[axisIndex];
@@ -24,6 +26,7 @@ float** _new2DFloatArray(size_t cols, size_t rows) {
   for (int idx = 0; idx < rows; idx++) {
     array[idx] = (float*) malloc(rows * sizeof(float));
   }
+  return array;
 }
 
 void InitalizeHBuffer(RCAC_internal_state_t *internalState, RCAC_hyperparameters_t *hyperParams) {
@@ -170,137 +173,43 @@ void updateWindowBuffer(RCAC_internal_state_t* state, RCAC_hyperparameters_t* hy
   }
 }
 
+void PrintBuffers(const RCAC_input_output_t *inputOutput,
+                  const RCAC_hyperparameters_t *hyperParams,
+                  const RCAC_internal_state_t *state)
+{
+  (void)hyperParams;
 
-void PrintBuffers() {
-  // Print H Buffers
-  Serial.println("=== H Buffers ===");
-
-  Serial.print("u_h: ");
-  for (int i = 0; i < FLAG.Nc - 1; i++) {
-    Serial.print(u_h[i]);
-    if (i < FLAG.Nc - 2)
-      Serial.print(", ");
+  DEBUG_SET(DEBUG_RCAC, 0, lrintf(inputOutput->u));
+  DEBUG_SET(DEBUG_RCAC, 1, lrintf(inputOutput->z));
+  DEBUG_SET(DEBUG_RCAC, 2, lrintf(inputOutput->yp));
+  DEBUG_SET(DEBUG_RCAC, 3, lrintf(inputOutput->r));
+  if (state->PHI) {
+    DEBUG_SET(DEBUG_RCAC, 4, lrintf(state->PHI[0]));
+    } else {
+    DEBUG_SET(DEBUG_RCAC, 4, 0);
   }
-  Serial.println();
-
-  Serial.print("z_h: ");
-  for (int i = 0; i < FLAG.Nc; i++) {
-    Serial.print(z_h[i]);
-    if (i < FLAG.Nc - 1)
-      Serial.print(", ");
-  }
-  Serial.println();
-
-  Serial.print("r_h: ");
-  for (int i = 0; i < FLAG.Nc; i++) {
-    Serial.print(r_h[i]);
-    if (i < FLAG.Nc - 1)
-      Serial.print(", ");
-  }
-  Serial.println();
-
-  Serial.print("yp_h: ");
-  for (int i = 0; i < FLAG.Nc; i++) {
-    Serial.print(yp_h[i]);
-    if (i < FLAG.Nc - 1)
-      Serial.print(", ");
-  }
-  Serial.println();
-
-  // Recalculate window dimensions for printing purposes
-  static const int nf_end = 5;
-  static const int pc = nf_end;
-  static const int pn = pc + FILT.Nf + FLAG.Nc;
-
-  // Print Window Buffers
-  Serial.println("=== Window Buffers ===");
-  Serial.println("PHI_window:");
-  for (int i = 0; i < ltheta - 1; i++) {
-    for (int j = 0; j < pn - 1; j++) {
-      Serial.print(PHI_window[i][j]);
-      if (j < pn - 2)
-        Serial.print(", ");
-    }
-    Serial.println();
-  }
-
-  Serial.print("u_window: ");
-  for (int i = 0; i < pn - 1; i++) {
-    Serial.print(u_window[i]);
-    if (i < pn - 2)
-      Serial.print(", ");
-  }
-  Serial.println();
-
-  Serial.print("z_window: ");
-  for (int i = 0; i < pc - 1; i++) {
-    Serial.print(z_window[i]);
-    if (i < pc - 2)
-      Serial.print(", ");
-  }
-  Serial.println();
-
-  // Print Filt Window Buffers
-  Serial.println("=== Filt Window Buffers ===");
-  Serial.println("PHI_filt_window:");
-  for (int i = 0; i < ltheta - 1; i++) {
-    for (int j = 0; j < 2 * ltheta - 1; j++) {
-      Serial.print(PHI_filt_window[i][j]);
-      if (j < 2 * ltheta - 2)
-        Serial.print(", ");
-    }
-    Serial.println();
-  }
-
-  Serial.print("u_filt_window: ");
-  for (int i = 0; i < 2 * ltheta - 1; i++) {
-    Serial.print(u_filt_window[i]);
-    if (i < 2 * ltheta - 2)
-      Serial.print(", ");
-  }
-  Serial.println();
-
-  // // Print the constant matrix P_k
-  // Serial.println("=== Constant Matrix P_k ===");
-  // for (int i = 0; i < 3; i++) {
-  //   for (int j = 0; j < 3; j++) {
-  //     Serial.print(P_k[i][j], 6);
-  //     if (j < 2)
-  //       Serial.print(", ");
-  //   }
-  //   Serial.println();
-  // }
-
-  // Print the regressor vector PHI
-  Serial.println("=== Regressor PHI ===");
-  if (PHI != NULL) {
-    for (int i = 0; i < ltheta; i++) {
-      Serial.print(PHI[i]);
-      if (i < ltheta - 1) {
-        Serial.print(", ");
-      }
-    }
-    Serial.println();
-  } else {
-    Serial.println("PHI is not allocated.");
-  }
+  DEBUG_SET(DEBUG_RCAC, 5, lrintf(state->u_h[0]));
+  DEBUG_SET(DEBUG_RCAC, 6, lrintf(state->z_h[0]));
+  DEBUG_SET(DEBUG_RCAC, 7, lrintf(state->r_h[0]));
 }
 
 void initRCACController(const pidProfile_t *pidProfile) {
   for (int axisIndex = 0; axisIndex < XYZ_AXIS_COUNT; axisIndex++) {
     RCAC_Scalar(pidProfile, axisIndex);
-    PrintBuffers();
+    PrintBuffers(&pidProfile->RCAC_input_output[axisIndex],
+                 &pidProfile->RCAC_hyperparameters[axisIndex],
+                 &pidProfile->RCAC_internal_state[axisIndex]);
   }
 }
 
-void loop() {
-  // Your main loop logic
-  u = u + 0.1; // u is your control output of rcac, this is the past rcac u output. generally this will be your motor speed
-  z = z + 0.11; // this is you 'performance vector' as known in the literature or just error. this is what you want to go to zero when good perfoamcne is met. ie, z = commanded pitch rate - measured pitch rate
-  yp = yp + 0.12; // this is your measurement, ie pitch rate, yaw rate, or roll rate. 
-  r = r + 0.13; // this is your command, appologies for the terrible notation, ie commanded pitch rate
-  k = k + 1; // this is your itteration, this is only used for startup and or initalization when k = 1.
-  RCAC_Scalar(k, u, z, yp, r); // this is single input single output RCAC running 
-  PrintBuffers();
-  delay(1000);
+
+void initRCACController(const pidProfile_t *pidProfile) {
+  for (int axisIndex = 0; axisIndex < XYZ_AXIS_COUNT; axisIndex++) {
+    RCAC_input_output_t* inputOutput = &pidProfile->RCAC_input_output[axisIndex];
+    inputOutput->k = inputOutput->k + 1;
+    RCAC_Scalar(pidProfile, axisIndex);
+    PrintBuffers(inputOutput,
+                 &pidProfile->RCAC_hyperparameters[axisIndex],
+                 &pidProfile->RCAC_internal_state[axisIndex]);
+  }
 }
