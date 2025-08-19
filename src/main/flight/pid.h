@@ -187,6 +187,64 @@ typedef enum {
     YAW_TYPE_DIFF_THRUST,
 } yawType_e;
 
+
+#define RCAC_HYPERPARAMS_ROLL_DEFAULT { true, 10000.0, 1.0, 1.0, 4, 15, 3, 5, 1.0 }
+#define RCAC_HYPERPARAMS_PITCH_DEFAULT { true, 10000.0, 1.0, 1.0, 4, 15, 3, 5, 1.0 }
+#define RCAC_HYPERPARAMS_YAW_DEFAULT { true, 10000.0, 1.0, 1.0, 4, 15, 3, 5, 1.0 }
+typedef struct RCAC_hyperparameters_s {
+    bool reg_z;
+    float r0;
+    float rz;
+    float lambda;
+    uint8_t nc;
+    uint8_t window;
+    uint8_t reg_size;
+    int32_t FILT_nf;
+    float FILT_nu;
+} RCAC_hyperparameters_t;
+
+#define RCAC_CONSTANTS_DEFAULT { 1, 1, 1, 1 }
+typedef struct RCAC_constants_s {
+    int8_t lu;
+    int8_t lz;
+    int8_t ly;
+    int8_t lx;
+} RCAC_constants_t;
+
+
+
+#define RCAC_INPUT_OUTPUT_ROLL_DEFAULT { 1, 1, 2, 3, 4 }
+#define RCAC_INPUT_OUTPUT_PITCH_DEFAULT { 1, 1, 2, 3, 4 }
+#define RCAC_INPUT_OUTPUT_YAW_DEFAULT { 1, 1, 2, 3, 4 }
+typedef struct RCAC_input_output_s {
+    float k;
+    float u;
+    float z;
+    float yp;
+    float r;
+} RCAC_input_output_t;
+typedef struct RCAC_internal_state_s {
+    // H buffers
+    float* u_h;
+    float* z_h;
+    float* r_h;
+    float* yp_h;
+    // Window buffers
+    float** PHI_window;
+    float* u_window;
+    float* z_window;
+    // Filt window buffers
+    float** PHI_filt_window;
+    float* u_filt_window;
+    float intg;
+    // PHI is the window of past terms used in optimization
+    float* PHI; 
+    // A constant 3x3 matrix P_k
+    //covariance term for RLS optimization
+    float P_k[3][3];
+} RCAC_internal_state_t;
+
+
 #define MAX_PROFILE_NAME_LENGTH 8u
 
 typedef struct pidProfile_s {
@@ -332,6 +390,12 @@ typedef struct pidProfile_s {
     uint16_t chirp_frequency_start_deci_hz; // start frequency in units of 0.1 hz
     uint16_t chirp_frequency_end_deci_hz;   // end frequency in units of 0.1 hz
     uint8_t chirp_time_seconds;             // excitation time
+
+    // RCAC stuff
+    RCAC_hyperparameters_t RCAC_hyperparameters[XYZ_AXIS_COUNT];
+    RCAC_internal_state_t RCAC_internal_state[XYZ_AXIS_COUNT];
+    RCAC_input_output_t RCAC_input_output[XYZ_AXIS_COUNT];
+    RCAC_constants_t RCAC_constants;
 } pidProfile_t;
 
 PG_DECLARE_ARRAY(pidProfile_t, PID_PROFILE_COUNT, pidProfiles);

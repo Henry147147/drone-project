@@ -1358,6 +1358,13 @@ FAST_CODE void taskFiltering(timeUs_t currentTimeUs)
     gyroFiltering(currentTimeUs);
 }
 
+static FAST_CODE_NOINLINE void subTaskRCACUpdate(timeUs_t currentTimeUs) {
+    // TODO
+    if (currentTimeUs == 0) {
+
+    }
+}
+
 // Function for loop trigger
 FAST_CODE void taskMainPidLoop(timeUs_t currentTimeUs)
 {
@@ -1368,15 +1375,18 @@ FAST_CODE void taskMainPidLoop(timeUs_t currentTimeUs)
 
     // DEBUG_PIDLOOP, timings for:
     // 0 - gyroUpdate()
+    // 0.5 - subTaskRCACUpdate()
     // 1 - subTaskPidController()
     // 2 - subTaskMotorUpdate()
-    // 3 - subTaskPidSubprocesses()
+    // 3 - subTaskPidSubprocesses() 
     DEBUG_SET(DEBUG_PIDLOOP, 0, micros() - currentTimeUs);
 
     subTaskRcCommand(currentTimeUs);
+    subTaskRCACUpdate(currentTimeUs);
     subTaskPidController(currentTimeUs);
     subTaskMotorUpdate(currentTimeUs);
     subTaskPidSubprocesses(currentTimeUs);
+   
 
     DEBUG_SET(DEBUG_CYCLETIME, 0, getTaskDeltaTimeUs(TASK_SELF));
     DEBUG_SET(DEBUG_CYCLETIME, 1, getAverageSystemLoadPercent());

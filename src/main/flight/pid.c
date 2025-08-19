@@ -267,6 +267,17 @@ void resetPidProfile(pidProfile_t *pidProfile)
         .chirp_frequency_start_deci_hz = 2,
         .chirp_frequency_end_deci_hz = 6000,
         .chirp_time_seconds = 20,
+        .RCAC_hyperparameters = {
+            [PID_ROLL] =  RCAC_HYPERPARAMS_ROLL_DEFAULT,
+            [PID_PITCH] = RCAC_HYPERPARAMS_PITCH_DEFAULT,
+            [PID_YAW] =   RCAC_HYPERPARAMS_YAW_DEFAULT,
+        },
+        .RCAC_constants = RCAC_CONSTANTS_DEFAULT,
+        .RCAC_input_output = {
+            [PID_ROLL] =  RCAC_INPUT_OUTPUT_ROLL_DEFAULT,
+            [PID_PITCH] = RCAC_INPUT_OUTPUT_PITCH_DEFAULT,
+            [PID_YAW] =   RCAC_INPUT_OUTPUT_YAW_DEFAULT,
+        }
     );
 }
 
