@@ -1,6 +1,6 @@
 #include "rcac.h"
-#include <build/debug.h>
-#include <common/utils.h>
+#include "pid.h"
+#include "build/debug.h"
 
 void RCAC_Scalar(const pidProfile_t *pidProfile, const int axisIndex)
 {
@@ -223,17 +223,6 @@ void PrintBuffers(const RCAC_input_output_t *inputOutput,
   DEBUG_SET(DEBUG_RCAC, 5, lrintf(state->u_h[0]));
   DEBUG_SET(DEBUG_RCAC, 6, lrintf(state->z_h[0]));
   DEBUG_SET(DEBUG_RCAC, 7, lrintf(state->r_h[0]));
-}
-
-void initRCACController(const pidProfile_t *pidProfile)
-{
-  for (int axisIndex = 0; axisIndex < XYZ_AXIS_COUNT; axisIndex++)
-  {
-    RCAC_Scalar(pidProfile, axisIndex);
-    PrintBuffers(&pidProfile->RCAC_input_output[axisIndex],
-                 &pidProfile->RCAC_hyperparameters[axisIndex],
-                 &pidProfile->RCAC_internal_state[axisIndex]);
-  }
 }
 
 void initRCACController(const pidProfile_t *pidProfile)
