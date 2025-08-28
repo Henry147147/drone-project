@@ -169,6 +169,7 @@ COMMON_SRC = \
             flight/mixer_tricopter.c \
             flight/pid.c \
             flight/pid_init.c \
+            flight/rcac.c \
             flight/position.c \
             flight/pos_hold_multirotor.c \
             flight/pos_hold_wing.c \
@@ -448,6 +449,7 @@ SPEED_OPTIMISED_SRC += \
             flight/imu.c \
             flight/mixer.c \
             flight/pid.c \
+            flight/rcac.c \
             flight/rpm_filter.c \
             rx/ibus.c \
             rx/rc_stats.c \

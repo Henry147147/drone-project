@@ -71,6 +71,7 @@
 #include "flight/imu.h"
 #include "flight/mixer.h"
 #include "flight/pid.h"
+#include "flight/rcac.h"
 #include "flight/position.h"
 #include "flight/rpm_filter.h"
 #include "flight/servos.h"
@@ -1368,15 +1369,17 @@ FAST_CODE void taskMainPidLoop(timeUs_t currentTimeUs)
 
     // DEBUG_PIDLOOP, timings for:
     // 0 - gyroUpdate()
+    // 0.5 - subTaskRCACUpdate()
     // 1 - subTaskPidController()
     // 2 - subTaskMotorUpdate()
-    // 3 - subTaskPidSubprocesses()
+    // 3 - subTaskPidSubprocesses() 
     DEBUG_SET(DEBUG_PIDLOOP, 0, micros() - currentTimeUs);
 
     subTaskRcCommand(currentTimeUs);
     subTaskPidController(currentTimeUs);
     subTaskMotorUpdate(currentTimeUs);
     subTaskPidSubprocesses(currentTimeUs);
+   
 
     DEBUG_SET(DEBUG_CYCLETIME, 0, getTaskDeltaTimeUs(TASK_SELF));
     DEBUG_SET(DEBUG_CYCLETIME, 1, getAverageSystemLoadPercent());

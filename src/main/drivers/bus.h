@@ -54,7 +54,7 @@ typedef struct busDevice_s {
             bool leadingEdge;
         } spi;
         struct busI2C_s {
-            i2cDevice_e device;
+            I2CDevice device;
         } i2c;
         struct busMpuSlave_s {
             struct extDevice_s *master;

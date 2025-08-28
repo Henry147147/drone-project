@@ -286,6 +286,12 @@ throttleStatus_e calculateThrottleStatus(rxConfig_t *rxConfig, uint16_t deadband
     return THROTTLE_HIGH;
 }
 
+uint16_t adcGetChannel(uint8_t channel)
+{
+    UNUSED(channel);
+    return currentADCReading;
+}
+
 void delay(uint32_t ms)
 {
     UNUSED(ms);

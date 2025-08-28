@@ -63,6 +63,7 @@
 #include "sensors/gyro.h"
 
 #include "pid.h"
+#include "rcac.h"
 
 typedef enum {
     LEVEL_MODE_OFF = 0,
@@ -80,6 +81,9 @@ const char pidNames[] =
 FAST_DATA_ZERO_INIT uint32_t targetPidLooptime;
 FAST_DATA_ZERO_INIT pidAxisData_t pidData[XYZ_AXIS_COUNT];
 FAST_DATA_ZERO_INIT pidRuntime_t pidRuntime;
+FAST_DATA_ZERO_INIT pidFloat_t pidErrorAngle[XYZ_AXIS_COUNT];
+FAST_DATA_ZERO_INIT pidFloat_t pidCurrentAngle[XYZ_AXIS_COUNT];
+FAST_DATA_ZERO_INIT pidFloat_t pidTargetAngle[XYZ_AXIS_COUNT];
 
 #if defined(USE_ABSOLUTE_CONTROL)
 STATIC_UNIT_TESTED FAST_DATA_ZERO_INIT float axisError[XYZ_AXIS_COUNT];
@@ -267,6 +271,17 @@ void resetPidProfile(pidProfile_t *pidProfile)
         .chirp_frequency_start_deci_hz = 2,
         .chirp_frequency_end_deci_hz = 6000,
         .chirp_time_seconds = 20,
+        .RCAC_hyperparameters = {
+            [PID_ROLL] =  RCAC_HYPERPARAMS_ROLL_DEFAULT,
+            [PID_PITCH] = RCAC_HYPERPARAMS_PITCH_DEFAULT,
+            [PID_YAW] =   RCAC_HYPERPARAMS_YAW_DEFAULT,
+        },
+        .RCAC_constants = RCAC_CONSTANTS_DEFAULT,
+        .RCAC_input_output = {
+            [PID_ROLL] =  RCAC_INPUT_OUTPUT_ROLL_DEFAULT,
+            [PID_PITCH] = RCAC_INPUT_OUTPUT_PITCH_DEFAULT,
+            [PID_YAW] =   RCAC_INPUT_OUTPUT_YAW_DEFAULT,
+        }
     );
 }
 
@@ -594,6 +609,9 @@ STATIC_UNIT_TESTED FAST_CODE_NOINLINE float pidLevel(int axis, const pidProfile_
 
     const float currentAngle = (attitude.raw[axis] - angleTrim->raw[axis]) / 10.0f; // stepped at 500hz with some 4ms flat spots
     const float errorAngle = angleTarget - currentAngle;
+    pidErrorAngle[axis].value = errorAngle;
+    pidTargetAngle[axis].value = angleTarget;
+    pidCurrentAngle[axis].value = currentAngle;
     float angleRate = errorAngle * pidRuntime.angleGain + angleFeedforward;
 
     // minimise cross-axis wobble due to faster yaw responses than roll or pitch, and make co-ordinated yaw turns
@@ -1550,6 +1568,15 @@ void FAST_CODE pidController(const pidProfile_t *pidProfile, timeUs_t currentTim
     } else if (pidRuntime.zeroThrottleItermReset) {
         pidResetIterm();
     }
+    for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
+        RCAC_input_output_t* rcac_input_output =  (RCAC_input_output_t *) &(pidProfile->RCAC_input_output[axis]);
+        rcac_input_output->u = pidData[axis].Sum;
+        rcac_input_output->z = pidErrorAngle[axis].value;
+        rcac_input_output->yp = pidCurrentAngle[axis].value;
+        rcac_input_output->r = pidTargetAngle[axis].value;
+    }
+
+    runRCACController((pidProfile_t *) pidProfile, currentTimeUs);
 }
 
 bool crashRecoveryModeActive(void)
