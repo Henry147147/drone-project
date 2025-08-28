@@ -5,14 +5,44 @@
 #include <math.h>
 #include <stdlib.h>
 
-static void InitializeWindowBuffers(const RCAC_hyperparameters_t *hyperParams, RCAC_internal_state_t *state);
-static void InitalizeHBuffer(RCAC_internal_state_t *internalState, const RCAC_hyperparameters_t *hyperParams);
-static void UpdateHBuffers(const RCAC_input_output_t *inputOutput, const RCAC_hyperparameters_t *hyperparams, RCAC_internal_state_t *state);
-static void buildRegressor(RCAC_internal_state_t *state, int k, uint8_t ltheta);
+static void InitializeWindowBuffers(const RCAC_hyperparameters_t *hyperParams, RCAC_internal_state_t *state, int axisIndex);
+static void InitalizeHBuffer(RCAC_internal_state_t *internalState, const RCAC_hyperparameters_t *hyperParams, int axisIndex);
+static void UpdateHBuffers(const RCAC_input_output_t *inputOutput, const RCAC_hyperparameters_t *hyperparams, RCAC_internal_state_t *state, int axisIndex);
+static void buildRegressor(RCAC_internal_state_t *state, int k, uint8_t ltheta, int axisIndex);
 static void updateWindowBuffer(RCAC_internal_state_t *state, const RCAC_hyperparameters_t *hyperparams, float u_in, float z_in) __attribute__((unused));
 static void PrintBuffers(const RCAC_input_output_t *inputOutput, const RCAC_hyperparameters_t *hyperParams, const RCAC_internal_state_t *state);
 static float *_newFloatArray(size_t size);
 static float **_new2DFloatArray(size_t rows, size_t cols);
+
+static bool validateAndInitIfNeeded(const RCAC_hyperparameters_t *hyperParams, RCAC_internal_state_t *state, int axisIndex)
+{
+  if (!hyperParams) {
+    SITL_LOG("[RCAC] axis=%d ERROR: hyperParams=NULL\n", axisIndex);
+    return false;
+  }
+  if (hyperParams->nc < 1) {
+    SITL_LOG("[RCAC] axis=%d ERROR: invalid nc=%u\n", axisIndex, (unsigned)hyperParams->nc);
+    return false;
+  }
+  if (hyperParams->reg_size < 1) {
+    SITL_LOG("[RCAC] axis=%d ERROR: invalid reg_size=%u\n", axisIndex, (unsigned)hyperParams->reg_size);
+    return false;
+  }
+
+  // Ensure H buffers are allocated
+  if (!state->u_h || !state->z_h || !state->r_h || !state->yp_h) {
+    SITL_LOG("[RCAC] axis=%d H-bufs NULL (u_h=%p z_h=%p r_h=%p yp_h=%p) -> init\n",
+             axisIndex, (void*)state->u_h, (void*)state->z_h, (void*)state->r_h, (void*)state->yp_h);
+    InitalizeHBuffer(state, hyperParams, axisIndex);
+  }
+
+  // Ensure PHI is allocated with at least reg_size entries
+  if (!state->PHI) {
+    state->PHI = _newFloatArray(hyperParams->reg_size);
+    SITL_LOG("[RCAC] axis=%d PHI allocated sz=%u ptr=%p\n", axisIndex, (unsigned)hyperParams->reg_size, (void*)state->PHI);
+  }
+  return true;
+}
 
 static void RCAC_Scalar(pidProfile_t *pidProfile, const int axisIndex)
 {
@@ -21,13 +51,24 @@ static void RCAC_Scalar(pidProfile_t *pidProfile, const int axisIndex)
   RCAC_internal_state_t *state = &pidProfile->RCAC_internal_state[axisIndex];
   const float k = inputOutput->k;
   const uint8_t ltheta = hyperParams->reg_size;
+  SITL_LOG("[RCAC] axis=%d RCAC_Scalar: k=%0.3f nc=%u reg_size=%u reg_z=%d\n",
+           axisIndex, (double)k, (unsigned)hyperParams->nc, (unsigned)hyperParams->reg_size, (int)hyperParams->reg_z);
+
+  // On first iteration, allocate windows and H buffers
   if (k == 1)
   {
-    InitializeWindowBuffers(hyperParams, state);
-    InitalizeHBuffer(state, hyperParams);
+    SITL_LOG("[RCAC] axis=%d k==1: initializing buffers\n", axisIndex);
+    InitializeWindowBuffers(hyperParams, state, axisIndex);
+    InitalizeHBuffer(state, hyperParams, axisIndex);
   }
-  UpdateHBuffers(inputOutput, hyperParams, state);
-  buildRegressor(state, k, ltheta);
+  // Validate and lazy-init if needed to avoid segfaults
+  if (!validateAndInitIfNeeded(hyperParams, state, axisIndex)) {
+    SITL_LOG("[RCAC] axis=%d ERROR: validation failed; skipping update\n", axisIndex);
+    return;
+  }
+
+  UpdateHBuffers(inputOutput, hyperParams, state, axisIndex);
+  buildRegressor(state, k, ltheta, axisIndex);
   // updateWindowBuffer(u_in, z_in);
 }
 
@@ -50,7 +91,7 @@ static float **_new2DFloatArray(size_t rows, size_t cols)
   return array;
 }
 
-static void InitalizeHBuffer(RCAC_internal_state_t *internalState, const RCAC_hyperparameters_t *hyperParams)
+static void InitalizeHBuffer(RCAC_internal_state_t *internalState, const RCAC_hyperparameters_t *hyperParams, int axisIndex)
 {
   // Note: u_h is allocated with size Nc-1 while others are size Nc.
   const uint8_t nc = hyperParams->nc;
@@ -66,9 +107,13 @@ static void InitalizeHBuffer(RCAC_internal_state_t *internalState, const RCAC_hy
 
   free(internalState->yp_h);
   internalState->yp_h = _newFloatArray(nc);
+
+  SITL_LOG("[RCAC] axis=%d InitalizeHBuffer: nc=%u u_h=%p z_h=%p r_h=%p yp_h=%p\n",
+           axisIndex, (unsigned)nc, (void*)internalState->u_h, (void*)internalState->z_h,
+           (void*)internalState->r_h, (void*)internalState->yp_h);
 }
 
-static void InitializeWindowBuffers(const RCAC_hyperparameters_t *hyperParams, RCAC_internal_state_t *state)
+static void InitializeWindowBuffers(const RCAC_hyperparameters_t *hyperParams, RCAC_internal_state_t *state, int axisIndex)
 {
   // Determine dimensions for the window buffers
   int nf_end = 5;
@@ -88,10 +133,14 @@ static void InitializeWindowBuffers(const RCAC_hyperparameters_t *hyperParams, R
 
   // Allocate and initialize u_filt_window (size: 2*ltheta-1)
   state->u_filt_window = _newFloatArray(2 * ltheta);
+
+  SITL_LOG("[RCAC] axis=%d InitializeWindowBuffers: ltheta=%u pn=%d FILT_nf=%d nc=%u PHI_window=%p u_window=%p z_window=%p\n",
+           axisIndex, (unsigned)ltheta, pn, (int)hyperParams->FILT_nf, (unsigned)hyperParams->nc,
+           (void*)state->PHI_window, (void*)state->u_window, (void*)state->z_window);
 }
 
 // UpdateHBuffers: Shifts all history buffers and updates them with new inputs
-static void UpdateHBuffers(const RCAC_input_output_t *inputOutput, const RCAC_hyperparameters_t *hyperparams, RCAC_internal_state_t *state)
+static void UpdateHBuffers(const RCAC_input_output_t *inputOutput, const RCAC_hyperparameters_t *hyperparams, RCAC_internal_state_t *state, int axisIndex)
 {
   float u_in = inputOutput->u;
   float z_in = inputOutput->z;
@@ -99,6 +148,15 @@ static void UpdateHBuffers(const RCAC_input_output_t *inputOutput, const RCAC_hy
   float r_in = inputOutput->r;
   // Update u_h (size: FLAG.Nc - 1)
   int len_u = hyperparams->nc - 1;
+  if (!state->u_h || !state->z_h || !state->r_h || !state->yp_h) {
+    SITL_LOG("[RCAC] axis=%d ERROR: UpdateHBuffers with NULL buffers (u_h=%p z_h=%p r_h=%p yp_h=%p)\n",
+             axisIndex, (void*)state->u_h, (void*)state->z_h, (void*)state->r_h, (void*)state->yp_h);
+    return;
+  }
+  if (len_u < 0) {
+    SITL_LOG("[RCAC] axis=%d ERROR: len_u=%d (nc=%u)\n", axisIndex, len_u, (unsigned)hyperparams->nc);
+    return;
+  }
   // Shift right: for i from (len_u-1) downto 1, assign u_h[i] = u_h[i-1]
   for (int i = len_u - 1; i > 0; i--)
   {
@@ -109,6 +167,10 @@ static void UpdateHBuffers(const RCAC_input_output_t *inputOutput, const RCAC_hy
 
   // Update z_h (size: FLAG.Nc)
   int len_z = hyperparams->nc;
+  if (len_z <= 0) {
+    SITL_LOG("[RCAC] axis=%d ERROR: len_z=%d (nc=%u)\n", axisIndex, len_z, (unsigned)hyperparams->nc);
+    return;
+  }
   for (int i = len_z - 1; i > 0; i--)
   {
     state->z_h[i] = state->z_h[i - 1];
@@ -143,11 +205,16 @@ static void UpdateHBuffers(const RCAC_input_output_t *inputOutput, const RCAC_hy
   state->intg = state->intg + state->z_h[0];
 }
 
-static void buildRegressor(RCAC_internal_state_t *state, int k, uint8_t ltheta)
+static void buildRegressor(RCAC_internal_state_t *state, int k, uint8_t ltheta, int axisIndex)
 {
-  if (k == 1)
-  {
+  if (!state->PHI) {
     state->PHI = _newFloatArray(ltheta);
+    SITL_LOG("[RCAC] axis=%d buildRegressor: allocated PHI sz=%u ptr=%p (k=%d)\n",
+             axisIndex, (unsigned)ltheta, (void*)state->PHI, k);
+  }
+  if (ltheta < 3) {
+    SITL_LOG("[RCAC] axis=%d ERROR: ltheta=%u < 3; PHI access would be invalid\n", axisIndex, (unsigned)ltheta);
+    return;
   }
   state->PHI[0] = state->yp_h[0];
   state->PHI[1] = state->intg;
@@ -212,7 +279,10 @@ void runRCACController(pidProfile_t *pidProfile, timeUs_t currentTimeUs)
   for (int axisIndex = 0; axisIndex < XYZ_AXIS_COUNT; axisIndex++)
   {
     RCAC_input_output_t *inputOutput = &pidProfile->RCAC_input_output[axisIndex];
+    float preK = inputOutput->k;
+    SITL_LOG("[RCAC] axis=%d run: pre-k=%0.3f\n", axisIndex, (double)preK);
     inputOutput->k = inputOutput->k + 1;
+    SITL_LOG("[RCAC] axis=%d run: post-k=%0.3f\n", axisIndex, (double)inputOutput->k);
     RCAC_Scalar(pidProfile, axisIndex);
     PrintBuffers(inputOutput,
                  &pidProfile->RCAC_hyperparameters[axisIndex],
