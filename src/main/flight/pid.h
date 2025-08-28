@@ -213,9 +213,9 @@ typedef struct RCAC_constants_s {
 
 
 
-#define RCAC_INPUT_OUTPUT_ROLL_DEFAULT { 1, 1, 2, 3, 4 }
-#define RCAC_INPUT_OUTPUT_PITCH_DEFAULT { 1, 1, 2, 3, 4 }
-#define RCAC_INPUT_OUTPUT_YAW_DEFAULT { 1, 1, 2, 3, 4 }
+#define RCAC_INPUT_OUTPUT_ROLL_DEFAULT { 0, 1, 2, 3, 4 }
+#define RCAC_INPUT_OUTPUT_PITCH_DEFAULT { 0, 1, 2, 3, 4 }
+#define RCAC_INPUT_OUTPUT_YAW_DEFAULT { 0, 1, 2, 3, 4 }
 typedef struct RCAC_input_output_s {
     float k; // current
     float u; // pidData.sum

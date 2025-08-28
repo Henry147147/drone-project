@@ -1568,15 +1568,45 @@ void FAST_CODE pidController(const pidProfile_t *pidProfile, timeUs_t currentTim
     } else if (pidRuntime.zeroThrottleItermReset) {
         pidResetIterm();
     }
-    for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-        RCAC_input_output_t* rcac_input_output =  (RCAC_input_output_t *) &(pidProfile->RCAC_input_output[axis]);
-        rcac_input_output->u = pidData[axis].Sum;
-        rcac_input_output->z = pidErrorAngle[axis].value;
-        rcac_input_output->yp = pidCurrentAngle[axis].value;
-        rcac_input_output->r = pidTargetAngle[axis].value;
-    }
+    
+    int useRCAC = true;
+    if (useRCAC) {
+        SITL_LOG("[RCAC] enabling at t=%u us\n", (unsigned)currentTimeUs);
+        for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
+            RCAC_input_output_t* rcac_input_output =  (RCAC_input_output_t *) &(pidProfile->RCAC_input_output[axis]);
+            const RCAC_internal_state_t* rcac_state = &(pidProfile->RCAC_internal_state[axis]);
+            SITL_LOG("[RCAC] axis=%d pre u_h=%p z_h=%p r_h=%p yp_h=%p k=%0.1f nc=%u\n",
+                     axis,
+                     (void*)rcac_state->u_h,
+                     (void*)rcac_state->z_h,
+                     (void*)rcac_state->r_h,
+                     (void*)rcac_state->yp_h,
+                     (double)rcac_input_output->k,
+                     (unsigned)pidProfile->RCAC_hyperparameters[axis].nc);
 
-    runRCACController((pidProfile_t *) pidProfile, currentTimeUs);
+            rcac_input_output->u = pidData[axis].Sum;
+            rcac_input_output->z = pidErrorAngle[axis].value;
+            rcac_input_output->yp = pidCurrentAngle[axis].value;
+            rcac_input_output->r = pidTargetAngle[axis].value;
+            SITL_LOG("[RCAC] axis=%d IO u=%0.3f z=%0.3f yp=%0.3f r=%0.3f\n",
+                     axis,
+                     (double)rcac_input_output->u,
+                     (double)rcac_input_output->z,
+                     (double)rcac_input_output->yp,
+                     (double)rcac_input_output->r);
+            if (axis == 0) {
+                DEBUG_SET(DEBUG_RCAC, 0, lrintf(rcac_input_output->u));
+                DEBUG_SET(DEBUG_RCAC, 1, lrintf(rcac_input_output->z));
+                DEBUG_SET(DEBUG_RCAC, 2, lrintf(rcac_input_output->yp));
+                DEBUG_SET(DEBUG_RCAC, 3, lrintf(rcac_input_output->r));
+            }
+        }
+
+        SITL_LOG("[RCAC] calling runRCACController\n");
+        runRCACController((pidProfile_t *) pidProfile, currentTimeUs);
+        SITL_LOG("[RCAC] runRCACController returned\n");
+    }
+    
 }
 
 bool crashRecoveryModeActive(void)

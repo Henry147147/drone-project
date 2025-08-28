@@ -22,6 +22,14 @@
 
 #include <stdint.h>
 
+// SITL stderr logging helper
+#if defined(SIMULATOR_BUILD)
+#include <stdio.h>
+#define SITL_LOG(fmt, ...) fprintf(stderr, fmt, ##__VA_ARGS__)
+#else
+#define SITL_LOG(...) do {} while (0)
+#endif
+
 #define DEBUG16_VALUE_COUNT 8
 extern int16_t debug[DEBUG16_VALUE_COUNT];
 extern uint8_t debugMode;
