@@ -281,7 +281,10 @@ void runRCACController(pidProfile_t *pidProfile, timeUs_t currentTimeUs)
     RCAC_input_output_t *inputOutput = &pidProfile->RCAC_input_output[axisIndex];
     float preK = inputOutput->k;
     SITL_LOG("[RCAC] axis=%d run: pre-k=%0.3f\n", axisIndex, (double)preK);
-    inputOutput->k = inputOutput->k + 1;
+    if (preK == 0) {
+      inputOutput->k = inputOutput->k + 1;
+    } 
+    
     SITL_LOG("[RCAC] axis=%d run: post-k=%0.3f\n", axisIndex, (double)inputOutput->k);
     RCAC_Scalar(pidProfile, axisIndex);
     PrintBuffers(inputOutput,
